@@ -7,10 +7,20 @@ import { AdminBebidas } from "./components/AdminBebidas";
 import { Button } from "./components/ui/button"; 
 import { Settings, X } from "lucide-react"; 
 
+interface RegistroCierre {
+  id: string;
+  mesa: number;
+  items: ItemConsumo[];
+  fecha: Date;
+  total: number;
+}
+
 export default function App() {
   const [mesaSeleccionada, setMesaSeleccionada] = useState<number | null>(null);
   const [consumos, setConsumos] = useState<Record<number, ItemConsumo[]>>({});
-  const [mostrarTicket, setMostrarTicket] = useState(false);
+  const [ticketCierre, setTicketCierre] = useState<RegistroCierre | null>(null);
+  const [registros, setRegistros] = useState<RegistroCierre[]>([]);
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [verConfiguracion, setVerConfiguracion] = useState(false); 
 
   const agregarNuevoConsumo = (nombre: string, precio: number, cantidad: number) => {
@@ -35,6 +45,34 @@ export default function App() {
 
   const consumosActuales = mesaSeleccionada !== null ? consumos[mesaSeleccionada] || [] : [];
 
+  const registrarCierre = (imprimirTicket: boolean) => {
+    if (mesaSeleccionada === null || consumosActuales.length === 0) {
+      setMostrarConfirmacion(false);
+      return;
+    }
+
+    const total = consumosActuales.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+    const registro: RegistroCierre = {
+      id: Date.now().toString(),
+      mesa: mesaSeleccionada,
+      items: [...consumosActuales],
+      fecha: new Date(),
+      total,
+    };
+
+    setRegistros((prev) => [...prev, registro]);
+    setTicketCierre(imprimirTicket ? registro : null);
+
+    setConsumos((prev) => {
+      const actualizado = { ...prev };
+      actualizado[mesaSeleccionada] = [];
+      return actualizado;
+    });
+
+    setMesaSeleccionada(null);
+    setMostrarConfirmacion(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-black font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -57,7 +95,7 @@ export default function App() {
           seleccionada={mesaSeleccionada} 
           alSeleccionar={(mesa) => {
             setMesaSeleccionada(mesa);
-            setMostrarTicket(false); 
+            setTicketCierre(null); 
             setVerConfiguracion(false); 
           }} 
         />
@@ -69,22 +107,80 @@ export default function App() {
             <ListaConsumo items={consumosActuales} onEliminar={eliminarConsumo} />
             {consumosActuales.length > 0 && (
               <Button 
-                onClick={() => setMostrarTicket(true)}
+                onClick={() => setMostrarConfirmacion(true)}
                 className="w-full bg-black text-white h-16 text-xl font-black"
               >
-                CERRAR MESA Y GENERAR TICKET
+                CERRAR MESA
               </Button>
             )}
           </div>
         )}
 
-        {mostrarTicket && mesaSeleccionada !== null && (
+        {ticketCierre && (
           <TicketImpresion
-            mesa={mesaSeleccionada}
-            items={consumosActuales}
-            fecha={new Date()}
-            onCerrar={() => setMostrarTicket(false)}
+            mesa={ticketCierre.mesa}
+            items={ticketCierre.items}
+            fecha={ticketCierre.fecha}
+            onCerrar={() => setTicketCierre(null)}
           />
+        )}
+
+        {registros.length > 0 && (
+          <div className="bg-white rounded-xl shadow border border-gray-200 p-4 space-y-2">
+            <h3 className="font-bold text-lg">Últimos cierres</h3>
+            {registros.slice(-5).reverse().map((registro) => (
+              <div
+                key={registro.id}
+                className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+              >
+                <div className="flex items-center gap-3 text-sm text-gray-700">
+                  <span className="font-bold text-red-600">Mesa {registro.mesa}</span>
+                  <span>{registro.fecha.toLocaleString("es-AR")}</span>
+                  <span>{registro.items.length} ítems</span>
+                </div>
+                <div className="font-semibold text-gray-900">
+                  ${registro.total.toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mostrarConfirmacion && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold text-black">¿Imprimir ticket de cierre?</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Puedes registrar el cierre sin imprimir o continuar para imprimir el ticket.
+                  </p>
+                </div>
+                <button
+                  className="text-gray-500 hover:text-black"
+                  onClick={() => setMostrarConfirmacion(false)}
+                >
+                  <X />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <Button
+                  onClick={() => registrarCierre(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Sí, imprimir
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => registrarCierre(false)}
+                  className="border-gray-300 text-black hover:bg-gray-50"
+                >
+                  No, solo cerrar
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
